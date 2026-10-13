@@ -1,0 +1,42 @@
+[package]
+name = "vaultlm"
+version = "0.1.0"
+description = "Private local-LLM workspace with encrypted local / Google Drive session sync"
+edition = "2021"
+
+[lib]
+name = "vaultlm_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "multipart"] }
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+base64 = "0.22"
+sha2 = "0.10"
+zeroize = "1"
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
+url = "2"
+open = "5"
+anyhow = "1"
+ignore = "0.4"
+regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import hljs from "highlight.js/lib/common";
 import { api, errMsg } from "../api";
 import { useApp } from "../store";
 import type { FileEntry } from "../types";
+import { useUi } from "../ui";
+import { Resizer } from "./Resizer";
 
 interface Node {
   name: string;
@@ -59,6 +61,9 @@ export function CodeSide() {
   const [sel, setSel] = useState<string | null>(null);
   const [content, setContent] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
+  const { treeRatio, setTreeRatio } = useUi();
+  const boxRef = useRef<HTMLElement>(null);
+  const ratioStart = useRef(treeRatio);
 
   const refresh = useCallback(async () => {
     if (!root) return;
@@ -114,7 +119,7 @@ export function CodeSide() {
   if (!root) return <aside className="code-side muted pad">워크스페이스가 없습니다</aside>;
 
   return (
-    <aside className="code-side">
+    <aside className="code-side" ref={boxRef} style={{ gridTemplateRows: `minmax(0, ${treeRatio}fr) auto minmax(0, ${1 - treeRatio}fr)` }}>
       <div className="tree">
         <div className="pane-head">
           <span className="ellipsis">{root.split(/[\\/]/).pop()}</span>
@@ -129,6 +134,13 @@ export function CodeSide() {
           ))}
         </div>
       </div>
+      <Resizer
+        dir="row"
+        title="드래그해서 트리/뷰어 비율 조절 · 더블클릭으로 기본값"
+        onStart={() => (ratioStart.current = treeRatio)}
+        onDrag={(dy) => setTreeRatio(ratioStart.current + dy / (boxRef.current?.clientHeight || 1))}
+        onReset={() => setTreeRatio(0.38)}
+      />
       <div className="viewer">
         <div className="pane-head">
           <span className="ellipsis">{sel ?? "파일을 선택하세요"}</span>

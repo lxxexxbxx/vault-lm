@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useApp } from "./store";
 import { Unlock } from "./components/Unlock";
 import { Sidebar } from "./components/Sidebar";
 import { ChatPane } from "./components/ChatPane";
 import { CodeSide } from "./components/CodeSide";
 import { Settings } from "./components/Settings";
+import { Resizer } from "./components/Resizer";
+import { maxRightWidth, RIGHT_DEFAULT, RIGHT_MIN, useUi } from "./ui";
 
 function ApprovalDialog() {
   const { approval } = useApp();
@@ -34,6 +36,8 @@ function ApprovalDialog() {
 
 export default function App() {
   const { init, vault, current, settingsOpen, toast, mode } = useApp();
+  const { leftOpen, rightOpen, rightWidth, setRightWidth, toggleLeft, toggleRight } = useUi();
+  const dragStart = useRef(rightWidth);
 
   useEffect(() => {
     init();
@@ -41,24 +45,60 @@ export default function App() {
     const stopDrop = (e: DragEvent) => e.preventDefault();
     window.addEventListener("dragover", stopDrop);
     window.addEventListener("drop", stopDrop);
+    // Ctrl/Cmd+B: left panel, Ctrl/Cmd+Shift+B: right panel
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "b") return;
+      e.preventDefault();
+      if (e.shiftKey) toggleRight();
+      else toggleLeft();
+    };
+    window.addEventListener("keydown", onKey);
+    // keep the right panel within bounds when the window shrinks
+    const onResize = () => {
+      const { rightWidth: w, leftOpen: l } = useUi.getState();
+      const max = maxRightWidth(l);
+      if (w > max) useUi.getState().setRightWidth(max);
+    };
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("dragover", stopDrop);
       window.removeEventListener("drop", stopDrop);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
     };
-  }, [init]);
+  }, [init, toggleLeft, toggleRight]);
 
   if (!vault) return <div className="boot" />;
   if (!vault.unlocked) return <Unlock />;
 
   const showCode = mode === "code" && current?.mode === "code";
+  const width = Math.min(Math.max(rightWidth, RIGHT_MIN), maxRightWidth(leftOpen));
 
   return (
-    <div className={`app ${showCode ? "with-code" : ""}`}>
-      <Sidebar />
+    <div className="app">
+      <div className={`left-slot ${leftOpen ? "" : "closed"}`} aria-hidden={!leftOpen}>
+        <Sidebar />
+      </div>
       <main className="main">
-        <ChatPane />
+        <ChatPane hasRight={showCode} />
       </main>
-      {showCode && <CodeSide />}
+      {showCode && (
+        <>
+          {rightOpen && <Resizer
+            dir="col"
+            title="드래그해서 크기 조절 · 더블클릭으로 기본 크기"
+            onStart={() => (dragStart.current = width)}
+            onDrag={(dx) =>
+              setRightWidth(Math.min(Math.max(dragStart.current - dx, RIGHT_MIN), maxRightWidth(leftOpen)))
+            }
+            onReset={() => setRightWidth(Math.min(RIGHT_DEFAULT, maxRightWidth(leftOpen)))}
+          />}
+          {/* stays mounted while hidden so the open file / expanded folders survive a toggle */}
+          <div className={`right-slot ${rightOpen ? "" : "closed"}`} style={{ width }} aria-hidden={!rightOpen}>
+            <CodeSide />
+          </div>
+        </>
+      )}
       {settingsOpen && <Settings />}
       <ApprovalDialog />
       {toast && <div className="toast">{toast}</div>}

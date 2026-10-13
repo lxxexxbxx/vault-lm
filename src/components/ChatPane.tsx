@@ -3,10 +3,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../store";
 import { Markdown, MessageView, Reasoning } from "./MessageView";
 import { estTokens, splitThink } from "../lib/context";
+import { useUi } from "../ui";
+import { PanelLeftIcon, PanelRightIcon } from "./Icons";
 
-export function ChatPane() {
+export function ChatPane({ hasRight }: { hasRight: boolean }) {
   const { current, streaming, send, stop, regenerate, compress, lastStats, cfg, setWorkspace, mode, newSession, server } =
     useApp();
+  const { leftOpen, rightOpen, toggleLeft, toggleRight } = useUi();
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -17,6 +20,16 @@ export function ChatPane() {
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [current?.messages.length, streaming?.text, streaming?.reasoning, streaming?.tool]);
 
+  // Opening a session: jump to the latest message once markdown has laid out.
+  useEffect(() => {
+    stick.current = true;
+    const id = requestAnimationFrame(() => {
+      const el = listRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [current?.id]);
+
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -24,8 +37,33 @@ export function ChatPane() {
     ta.style.height = Math.min(ta.scrollHeight, 260) + "px";
   }, [text]);
 
+  const leftToggle = (
+    <button
+      className="icon-btn"
+      onClick={toggleLeft}
+      title={`${leftOpen ? "사이드바 접기" : "사이드바 펼치기"} (Ctrl+B)`}
+      aria-label="사이드바 토글"
+    >
+      <PanelLeftIcon open={leftOpen} />
+    </button>
+  );
+  const rightToggle = hasRight ? (
+    <button
+      className="icon-btn"
+      onClick={toggleRight}
+      title={`${rightOpen ? "파일 패널 접기" : "파일 패널 펼치기"} (Ctrl+Shift+B)`}
+      aria-label="파일 패널 토글"
+    >
+      <PanelRightIcon open={rightOpen} />
+    </button>
+  ) : null;
+
   if (!current) {
     return (
+      <div className="chat">
+        <header className="chat-head">
+          <div className="head-left">{leftToggle}</div>
+        </header>
       <div className="empty">
         <div className="logo lg" />
         <h2>{mode === "code" ? "로컬 코드 에이전트" : "무엇을 도와드릴까요?"}</h2>
@@ -45,6 +83,7 @@ export function ChatPane() {
           {mode === "code" ? "폴더 열고 시작" : "새 대화 시작"}
         </button>
       </div>
+      </div>
     );
   }
 
@@ -63,22 +102,23 @@ export function ChatPane() {
   return (
     <div className="chat">
       <header className="chat-head">
-        <div className="ellipsis">
-          <b>{current.title}</b>
+        <div className="head-left">
+          {leftToggle}
+          <b className="ellipsis title">{current.title}</b>
           {current.mode === "code" && (
             <button
               className="ws-chip"
-              title="워크스페이스 변경"
+              title={`${current.workspace ?? ""}\n클릭해서 워크스페이스 변경`}
               onClick={async () => {
                 const dir = await open({ directory: true, title: "워크스페이스 폴더 선택" });
                 if (typeof dir === "string") setWorkspace(dir);
               }}
             >
-              {current.workspace ?? "폴더 선택"}
+              {current.workspace ? current.workspace.split(/[\\/]/).filter(Boolean).slice(-2).join("/") : "폴더 선택"}
             </button>
           )}
         </div>
-        <div className="row gap">
+        <div className="head-right">
           <span className={`ctx ${ctxPct > 85 ? "hot" : ""}`} title="대략적인 맥락 사용량">
             맥락 {ctxPct}%
           </span>
@@ -86,6 +126,7 @@ export function ChatPane() {
           <button className="ghost sm" onClick={() => compress()} disabled={!!streaming} title="오래된 메시지를 요약해 맥락을 확보">
             맥락 압축
           </button>
+          {rightToggle}
         </div>
       </header>
 
